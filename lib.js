@@ -4,12 +4,12 @@ class MyEmitter extends EventEmitter {}
 const myEmitter = new MyEmitter();
 
 let isReady = false;
-global.Module = {
+Module = {
     onRuntimeInitialized() {
         init();
     }
   }
-global.cv = require('./opencv.js');
+const cv = require('./opencv.js');
 
 
 function init() {
@@ -63,7 +63,7 @@ function getDftMat(padded)
 {
     let planes = new cv.MatVector();
     planes.push_back(padded);
-    planes.push_back(new cv.Mat.zeros(padded.rows, padded.cols, cv.CV_32F));
+    planes.push_back(new cv.Mat.zeros(padded.size(), cv.CV_32F));
     let comImg = new cv.Mat();
     cv.merge(planes,comImg);
     cv.dft(comImg, comImg);
@@ -73,9 +73,9 @@ function getDftMat(padded)
 function addTextByMat(comImg,watermarkText,point,fontSize)
 {
     cv.putText(comImg, watermarkText, point, cv.FONT_HERSHEY_DUPLEX, fontSize, cv.Scalar.all(0),2);  
-    // cv.flip(comImg, comImg, -1);
-    // cv.putText(comImg, watermarkText, point, cv.FONT_HERSHEY_DUPLEX, fontSize, cv.Scalar.all(0),2);  
-    // cv.flip(comImg, comImg, -1);
+    cv.flip(comImg, comImg, -1);
+    cv.putText(comImg, watermarkText, point, cv.FONT_HERSHEY_DUPLEX, fontSize, cv.Scalar.all(0),2);  
+    cv.flip(comImg, comImg, -1);
 }
 
 cv.idft = function(src, dst, flags, nonzero_rows ) {
@@ -100,7 +100,7 @@ function transFormMatWithText(srcImg, watermarkText,fontSize) {
     cv.split(srcImg, backPlanes);
     // backPlanes.erase(backPlanes.get(0));
     // backPlanes.insert(backPlanes.get(0), restoredImage);
-    // backPlanes.resize(backPlanes.size()+1,restoredImage);
+    backPlanes.set(0,restoredImage)
     let backImage = new cv.Mat();
     cv.merge(backPlanes,backImage);
     return backImage;
@@ -113,15 +113,14 @@ function getTextFormMat(backImage) {
     let backPlanes = new cv.MatVector();
     // split the comples image in two backPlanes  
     cv.split(comImg, backPlanes);
-    console.log(comImg,backPlanes.size())
     let mag = new cv.Mat();
     // compute the magnitude
     cv.magnitude(backPlanes.get(0), backPlanes.get(1), mag);
     // move to a logarithmic scale  
-    cv.add(new cv.Mat.ones(mag.size(), cv.CV_32F), mag, mag);  
+    cv.add(cv.Mat.ones(mag.size(), cv.CV_32F), mag, mag);  
     cv.log(mag, mag);  
     shiftDFT(mag);
-    mag.convertTo(mag, cv.CV_8UC1);  
+    mag.convertTo(mag, cv.CV_8UC1);
     cv.normalize(mag, mag, 0, 255, cv.NORM_MINMAX, cv.CV_8UC1);  
     return mag;    
 }
