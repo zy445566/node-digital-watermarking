@@ -31,3 +31,6 @@ run()
 ![enCode.png](https://raw.githubusercontent.com/zy445566/node-digital-watermarking/master/test/enCode.png)
 ## deCode.png
 ![deCode.png](https://raw.githubusercontent.com/zy445566/node-digital-watermarking/master/test/deCode.png)
+
+# Porting to Wasm
+PR: https://github.com/zy445566/node-digital-watermarking/pull/8
