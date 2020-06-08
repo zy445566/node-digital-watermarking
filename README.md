@@ -34,3 +34,7 @@ run()
 
 # Porting to Wasm
 PR: https://github.com/zy445566/node-digital-watermarking/pull/8
+
+If your node.js version less then 12,you need install digital-watermarking@1.0.2 with node-gyp.
+
+如果你的node.js版本低于12，你可能无法使用wasm，那么你则需要安装带有node-gyp的1.0.2版本
