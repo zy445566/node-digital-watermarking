@@ -1,4 +1,4 @@
-const addon = require('./build/Release/addon');
+const lib = require('./lib.js');
 const path = require('path');
 const fs = require('fs');
 class DigitalWatermarking{
@@ -12,22 +12,22 @@ class DigitalWatermarking{
         if(!fs.existsSync(filePath)){throw new Error(`not file in ${filePath}`);}
     }
 
-    static transformImageWithText(srcFileName,watermarkText,fontSize,enCodeFileName)
+    static async transformImageWithText(srcFileName,watermarkText,fontSize,enCodeFileName)
     {
         srcFileName = DigitalWatermarking.getAbsoluteFilePath(srcFileName);
         DigitalWatermarking.existsFilePath(srcFileName);
-        return addon.transformImageWithText(
+        return await lib.transformImageWithText(
             srcFileName,
             watermarkText,fontSize,
             DigitalWatermarking.getAbsoluteFilePath(enCodeFileName)
         );
     }
 
-    static getTextFormImage(enCodeFileName,deCodeFileName)
+    static async getTextFormImage(enCodeFileName,deCodeFileName)
     {
         enCodeFileName = DigitalWatermarking.getAbsoluteFilePath(enCodeFileName);
         DigitalWatermarking.existsFilePath(enCodeFileName);
-        return addon.getTextFormImage(
+        return await lib.getTextFormImage(
             enCodeFileName,
             DigitalWatermarking.getAbsoluteFilePath(deCodeFileName)
         );
