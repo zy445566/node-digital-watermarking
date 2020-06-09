@@ -145,13 +145,10 @@ function matToBuffer(mat){
     return imgData
 }
 
-async function transformImageWithText(srcFileName,watermarkText,fontSize,enCodeFileName) {
+async function transformImageWithText(srcFileName,watermarkText,fontSize,enCodeFileName='') {
   await isReadyFunc ()
-  if (arguments.length != 4) {
-    throw new Error('Wrong number of arguments')
-  }
-  if((typeof srcFileName)!='string') {
-    throw new Error('fileName must be string')
+  if((typeof srcFileName)!='string' && (!(srcFileName instanceof Buffer))) {
+    throw new Error('fileName must be string or Buffer')
   }
   if((typeof watermarkText)!='string') {
     throw new Error('waterMarkText must be string')
@@ -166,33 +163,40 @@ async function transformImageWithText(srcFileName,watermarkText,fontSize,enCodeF
   let srcImg = new cv.matFromImageData(jimpSrc.bitmap);
   if (srcImg.empty()){throw new Error("read image failed");}
   let comImg = transFormMatWithText(srcImg, watermarkText, fontSize);
-  return await new Jimp({
+  const imgRes = new Jimp({
     width: comImg.cols,
     height: comImg.rows,
     data: matToBuffer(comImg)
-    }).writeAsync(enCodeFileName);
+  });
+  if(enCodeFileName) {
+    return await imgRes.writeAsync(enCodeFileName);
+  } else {
+    return imgRes
+  }
 }
 
-async function getTextFormImage(enCodeFileName,deCodeFileName) {
+async function getTextFormImage(enCodeFileName,deCodeFileName='') {
     await isReadyFunc ()
-    if (arguments.length != 2) {
-        throw new Error('Wrong number of arguments')
+    if((typeof enCodeFileName)!='string'  && (!(enCodeFileName instanceof Buffer))) {
+      throw new Error('fileName must be string or Buffer')
     }
-    if((typeof enCodeFileName)!='string') {
-        throw new Error('fileName must be string')
-      }
-      if((typeof deCodeFileName)!='string') {
-        throw new Error('backFileName must be string')
-      }
+    if((typeof deCodeFileName)!='string') {
+      throw new Error('backFileName must be string')
+    }
 
     let jimpSrc = await Jimp.read(enCodeFileName);
     let comImg = new cv.matFromImageData(jimpSrc.bitmap);
     let backImage = getTextFormMat(comImg);
-    return await new Jimp({
+    const imgRes = await new Jimp({
         width: backImage.cols,
         height: backImage.rows,
         data: matToBuffer(backImage)
-    }).writeAsync(deCodeFileName);
+    })
+    if(deCodeFileName) {
+      return await imgRes.writeAsync(deCodeFileName);
+    } else {
+      return imgRes
+    }
   }
 
 
