@@ -31,7 +31,7 @@ function isReadyFunc () {
 
 function shiftDFT(mag) {
     let rect = new cv.Rect(0, 0, mag.cols & (-2), mag.rows & (-2));
-    mag = mag.roi(rect);
+    mag.roi(rect);
 
     let cx = mag.cols / 2;
     let cy = mag.rows / 2;
@@ -49,6 +49,12 @@ function shiftDFT(mag) {
     q1.copyTo(tmp);
     q2.copyTo(q1);
     tmp.copyTo(q2);
+
+    tmp.delete()
+    q0.delete()
+    q1.delete()
+    q2.delete()
+    q3.delete()
 }
 
 function getBlueChannel(image)
@@ -103,6 +109,7 @@ function transFormMatWithText(srcImg, watermarkText,fontSize) {
     backPlanes.set(0,restoredImage)
     let backImage = new cv.Mat();
     cv.merge(backPlanes,backImage);
+    invDFT.delete();
     return backImage;
 }
 
@@ -121,7 +128,7 @@ function getTextFormMat(backImage) {
     cv.log(mag, mag);  
     shiftDFT(mag);
     mag.convertTo(mag, cv.CV_8UC1);
-    cv.normalize(mag, mag, 0, 255, cv.NORM_MINMAX, cv.CV_8UC1);  
+    cv.normalize(mag, mag, 0, 255, cv.NORM_MINMAX, cv.CV_8UC1);
     return mag;    
 }
 
@@ -168,6 +175,8 @@ async function transformImageWithText(srcFileName,watermarkText,fontSize,enCodeF
     height: comImg.rows,
     data: matToBuffer(comImg)
   });
+  srcImg.delete();
+  comImg.delete();
   if(enCodeFileName) {
     return await imgRes.writeAsync(enCodeFileName);
   } else {
@@ -192,6 +201,8 @@ async function getTextFormImage(enCodeFileName,deCodeFileName='') {
         height: backImage.rows,
         data: matToBuffer(backImage)
     })
+    comImg.delete();
+    backImage.delete();
     if(deCodeFileName) {
       return await imgRes.writeAsync(deCodeFileName);
     } else {

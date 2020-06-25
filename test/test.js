@@ -16,8 +16,12 @@ async function run() {
     let deCodeFileName = getAbsolutePath("deCode.png");
     await dw.getTextFormImage(enCodeFileName,deCodeFileName);
 
-    const enCodeFileRes = await dw.transformImageBufferWithText(fs.readFileSync(srcFileName),watermarkText,fontSize);
-    const deCodeFileRes = await dw.getTextFormImageBuffer(fs.readFileSync(enCodeFileName));
-    console.log(enCodeFileRes instanceof Jimp,deCodeFileRes instanceof Jimp)
+    for(let i=0;i<1000;i++) {
+        const enCodeFileRes = await dw.transformImageBufferWithText(fs.readFileSync(srcFileName),watermarkText,fontSize);
+        const deCodeFileRes = await dw.getTextFormImageBuffer(fs.readFileSync(enCodeFileName));
+        console.log(enCodeFileRes instanceof Jimp,deCodeFileRes instanceof Jimp, i)
+    }
+    
+    
 }
 run()
