@@ -19,7 +19,7 @@ async function run() {
     // for(let i=0;i<1000;i++) {
         const enCodeFileRes = await dw.transformImageBufferWithText(fs.readFileSync(srcFileName),watermarkText,fontSize);
         const deCodeFileRes = await dw.getTextFormImageBuffer(fs.readFileSync(enCodeFileName));
-        console.log(enCodeFileRes instanceof Jimp,deCodeFileRes instanceof Jimp, i)
+    //     console.log(enCodeFileRes instanceof Jimp,deCodeFileRes instanceof Jimp, i)
     // }
     
 }

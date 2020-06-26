@@ -1,28 +1,28 @@
 const Jimp = require('jimp');
-const EventEmitter = require('events');
-class MyEmitter extends EventEmitter {}
-const myEmitter = new MyEmitter();
+const vm = require('vm');
+const fs = require('fs');
 
-let isReady = false;
-Module = {
-    onRuntimeInitialized() {
-        init();
-    }
-  }
-const cv = require('./opencv.js');
-
-
-function init() {
-    isReady = true;
-    myEmitter.emit('ready');
-}
+let cv = {};
+let context = {};
+let opencvCode = fs.readFileSync('./opencv.js');
+const script = new vm.Script(opencvCode);
 
 function isReadyFunc () {
     return new Promise((reslove,reject)=>{
-        if(isReady){return reslove(isReady)}
-        myEmitter.once('ready',()=>{
-            return reslove(isReady)
-        });
+        context = {
+            module:{exports:{}},
+            Module:{
+                onRuntimeInitialized() {
+                  cv = context.module.exports();
+                  cv.idft = function(src, dst, flags, nonzero_rows ) {
+                    cv.dft( src, dst, flags | cv.DFT_INVERSE, nonzero_rows );
+                  }
+                  return reslove(true);
+                }
+            },
+            print:console.log
+        }
+        script.runInNewContext(context);
         setTimeout(()=>{
             return reject(new Error('loading opencv time out'))
         },3*1000)
@@ -84,10 +84,6 @@ function addTextByMat(comImg,watermarkText,point,fontSize)
     cv.flip(comImg, comImg, -1);
     cv.putText(comImg, watermarkText, point, cv.FONT_HERSHEY_DUPLEX, fontSize, cv.Scalar.all(0),2);  
     cv.flip(comImg, comImg, -1);
-}
-
-cv.idft = function(src, dst, flags, nonzero_rows ) {
-  cv.dft( src, dst, flags | cv.DFT_INVERSE, nonzero_rows );
 }
 
 function transFormMatWithText(srcImg, watermarkText,fontSize) {
