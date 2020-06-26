@@ -69,10 +69,12 @@ function getDftMat(padded)
 {
     let planes = new cv.MatVector();
     planes.push_back(padded);
-    planes.push_back(new cv.Mat.zeros(padded.size(), cv.CV_32F));
+    let matZ = new cv.Mat.zeros(padded.size(), cv.CV_32F)
+    planes.push_back(matZ);
     let comImg = new cv.Mat();
     cv.merge(planes,comImg);
     cv.dft(comImg, comImg);
+    matZ.delete();
     return comImg;
 }
 
@@ -109,7 +111,11 @@ function transFormMatWithText(srcImg, watermarkText,fontSize) {
     backPlanes.set(0,restoredImage)
     let backImage = new cv.Mat();
     cv.merge(backPlanes,backImage);
+
+    padded.delete();
+    comImg.delete();
     invDFT.delete();
+    restoredImage.delete()
     return backImage;
 }
 
@@ -124,11 +130,16 @@ function getTextFormMat(backImage) {
     // compute the magnitude
     cv.magnitude(backPlanes.get(0), backPlanes.get(1), mag);
     // move to a logarithmic scale  
-    cv.add(cv.Mat.ones(mag.size(), cv.CV_32F), mag, mag);  
+    let matOne = cv.Mat.ones(mag.size(), cv.CV_32F)
+    cv.add(matOne, mag, mag);  
     cv.log(mag, mag);  
     shiftDFT(mag);
     mag.convertTo(mag, cv.CV_8UC1);
     cv.normalize(mag, mag, 0, 255, cv.NORM_MINMAX, cv.CV_8UC1);
+
+    padded.delete();
+    comImg.delete();
+    matOne.delete();
     return mag;    
 }
 
