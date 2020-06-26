@@ -60,4 +60,5 @@ typings/
 # my
 .vscode
 build
+*.heapsnapshot
 
