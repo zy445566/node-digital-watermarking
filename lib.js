@@ -1,31 +1,29 @@
 const Jimp = require('jimp');
-const vm = require('vm');
+const requireVm = require('require-vm');
 const fs = require('fs');
 
 let cv = {};
 let context = {};
-let opencvCode = fs.readFileSync('./opencv.js');
-const script = new vm.Script(opencvCode);
 
 function isReadyFunc () {
     return new Promise((reslove,reject)=>{
-        context = {
-            module:{exports:{}},
-            Module:{
-                onRuntimeInitialized() {
-                  cv = context.module.exports();
-                  cv.idft = function(src, dst, flags, nonzero_rows ) {
-                    cv.dft( src, dst, flags | cv.DFT_INVERSE, nonzero_rows );
-                  }
-                  return reslove(true);
-                }
-            },
-            print:console.log
-        }
-        script.runInNewContext(context);
-        setTimeout(()=>{
-            return reject(new Error('loading opencv time out'))
-        },3*1000)
+      context = {
+        module:{exports:{}},
+        Module:{
+            onRuntimeInitialized() {
+              cv = context.module.exports();
+              cv.idft = function(src, dst, flags, nonzero_rows ) {
+                cv.dft( src, dst, flags | cv.DFT_INVERSE, nonzero_rows );
+              }
+              return reslove(true);
+            }
+        },
+        print:console.log
+      }
+      requireVm('./opencv.js',context,{},{},true)
+      setTimeout(()=>{
+          return reject(new Error('loading opencv time out'))
+      },3*1000)
     })
 }
 
