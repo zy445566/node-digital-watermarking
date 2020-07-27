@@ -1,21 +1,18 @@
 const Jimp = require('jimp');
 const requireVm = require('require-vm');
-const fs = require('fs');
-
-let cv = {};
-let context = {};
 
 function isReadyFunc () {
     return new Promise((reslove,reject)=>{
-      context = {
+      const context = {
         module:{exports:{}},
         Module:{
             onRuntimeInitialized() {
-              cv = context.module.exports();
+              context.cv = context.module.exports();
+              const cv = context.cv;
               cv.idft = function(src, dst, flags, nonzero_rows ) {
                 cv.dft( src, dst, flags | cv.DFT_INVERSE, nonzero_rows );
               }
-              return reslove(true);
+              return reslove(context);
             }
         },
         print:console.log
@@ -27,7 +24,7 @@ function isReadyFunc () {
     })
 }
 
-function shiftDFT(mag) {
+function shiftDFT(cv, mag) {
     let rect = new cv.Rect(0, 0, mag.cols & (-2), mag.rows & (-2));
     mag.roi(rect);
 
@@ -55,7 +52,7 @@ function shiftDFT(mag) {
     q3.delete()
 }
 
-function getBlueChannel(image)
+function getBlueChannel(cv, image)
 {
     let nextImg = image;
     let channel = new cv.MatVector();
@@ -63,7 +60,7 @@ function getBlueChannel(image)
     return channel.get(0);
 }
 
-function getDftMat(padded)
+function getDftMat(cv, padded)
 {
     let planes = new cv.MatVector();
     planes.push_back(padded);
@@ -76,7 +73,7 @@ function getDftMat(padded)
     return comImg;
 }
 
-function addTextByMat(comImg,watermarkText,point,fontSize)
+function addTextByMat(cv, comImg,watermarkText,point,fontSize)
 {
     cv.putText(comImg, watermarkText, point, cv.FONT_HERSHEY_DUPLEX, fontSize, cv.Scalar.all(0),2);  
     cv.flip(comImg, comImg, -1);
@@ -84,15 +81,15 @@ function addTextByMat(comImg,watermarkText,point,fontSize)
     cv.flip(comImg, comImg, -1);
 }
 
-function transFormMatWithText(srcImg, watermarkText,fontSize) {
-    let padded = getBlueChannel(srcImg);
+function transFormMatWithText(cv, srcImg, watermarkText,fontSize) {
+    let padded = getBlueChannel(cv, srcImg);
     padded.convertTo(padded, cv.CV_32F);
-    let comImg = getDftMat(padded);
+    let comImg = getDftMat(cv, padded);
     // add text 
     let center = new cv.Point(padded.cols/2, padded.rows/2);
-    addTextByMat(comImg,watermarkText,center,fontSize);
+    addTextByMat(cv, comImg,watermarkText,center,fontSize);
     let outer = new cv.Point (45, 45);
-    addTextByMat(comImg,watermarkText,outer,fontSize);
+    addTextByMat(cv, comImg,watermarkText,outer,fontSize);
     //back image
     let invDFT = new cv.Mat();
     cv.idft(comImg, invDFT, cv.DFT_SCALE | cv.DFT_REAL_OUTPUT, 0);
@@ -113,10 +110,10 @@ function transFormMatWithText(srcImg, watermarkText,fontSize) {
     return backImage;
 }
 
-function getTextFormMat(backImage) {
-    let padded= getBlueChannel(backImage);
+function getTextFormMat(cv, backImage) {
+    let padded= getBlueChannel(cv, backImage);
     padded.convertTo(padded, cv.CV_32F);
-    let comImg = getDftMat(padded);
+    let comImg = getDftMat(cv, padded);
     let backPlanes = new cv.MatVector();
     // split the comples image in two backPlanes  
     cv.split(comImg, backPlanes);
@@ -127,7 +124,7 @@ function getTextFormMat(backImage) {
     let matOne = cv.Mat.ones(mag.size(), cv.CV_32F)
     cv.add(matOne, mag, mag);  
     cv.log(mag, mag);  
-    shiftDFT(mag);
+    shiftDFT(cv, mag);
     mag.convertTo(mag, cv.CV_8UC1);
     cv.normalize(mag, mag, 0, 255, cv.NORM_MINMAX, cv.CV_8UC1);
 
@@ -137,7 +134,7 @@ function getTextFormMat(backImage) {
     return mag;    
 }
 
-function matToBuffer(mat){
+function matToBuffer(cv, mat){
     if(!(mat instanceof cv.Mat)){
         throw new Error("Please input the valid new cv.Mat instance.");
     }
@@ -158,7 +155,8 @@ function matToBuffer(mat){
 }
 
 async function transformImageWithText(srcFileName,watermarkText,fontSize,enCodeFileName='') {
-  await isReadyFunc ()
+  const context = await isReadyFunc ()
+  const cv = context.cv;
   if((typeof srcFileName)!='string' && (!(srcFileName instanceof Buffer))) {
     throw new Error('fileName must be string or Buffer')
   }
@@ -174,11 +172,11 @@ async function transformImageWithText(srcFileName,watermarkText,fontSize,enCodeF
   let jimpSrc = await Jimp.read(srcFileName);
   let srcImg = new cv.matFromImageData(jimpSrc.bitmap);
   if (srcImg.empty()){throw new Error("read image failed");}
-  let comImg = transFormMatWithText(srcImg, watermarkText, fontSize);
+  let comImg = transFormMatWithText(cv, srcImg, watermarkText, fontSize);
   const imgRes = new Jimp({
     width: comImg.cols,
     height: comImg.rows,
-    data: matToBuffer(comImg)
+    data: matToBuffer(cv, comImg)
   });
   srcImg.delete();
   comImg.delete();
@@ -190,7 +188,8 @@ async function transformImageWithText(srcFileName,watermarkText,fontSize,enCodeF
 }
 
 async function getTextFormImage(enCodeFileName,deCodeFileName='') {
-    await isReadyFunc ()
+    const context = await isReadyFunc ()
+    const cv = context.cv;
     if((typeof enCodeFileName)!='string'  && (!(enCodeFileName instanceof Buffer))) {
       throw new Error('fileName must be string or Buffer')
     }
@@ -200,11 +199,11 @@ async function getTextFormImage(enCodeFileName,deCodeFileName='') {
 
     let jimpSrc = await Jimp.read(enCodeFileName);
     let comImg = new cv.matFromImageData(jimpSrc.bitmap);
-    let backImage = getTextFormMat(comImg);
+    let backImage = getTextFormMat(cv, comImg);
     const imgRes = await new Jimp({
         width: backImage.cols,
         height: backImage.rows,
-        data: matToBuffer(backImage)
+        data: matToBuffer(cv, backImage)
     })
     comImg.delete();
     backImage.delete();
