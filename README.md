@@ -7,6 +7,7 @@
 ```
 npm install digital-watermarking
 ```
+This package is only used for the Node.js, if you are using Web, use [web-digital-watermarking](https://github.com/zy445566/web-digital-watermarking).
 
 # Sample Use
 ```js
