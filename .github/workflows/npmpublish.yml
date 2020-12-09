@@ -6,10 +6,32 @@ on:
       - master
 
 jobs:
-  build:
+  build-node-8:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 8
+      - run: npm ci
+      - run: npm test
+
+  build-node-10:
+    needs: build-node-8
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 10
+      - run: npm ci
+      - run: npm test
+
+  build-node-12:
+    needs: build-node-10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
       - uses: actions/setup-node@v1
         with:
           node-version: 12
@@ -17,7 +39,7 @@ jobs:
       - run: npm test
 
   publish-npm:
-    needs: build
+    needs: build-node-12
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
