@@ -13,14 +13,14 @@ function isReadyFunc () {
                 cv.dft( src, dst, flags | cv.DFT_INVERSE, nonzero_rows );
               }
               return reslove(context);
+            },
+            onAbort() {
+              return reject(new Error('loading opencv error'))
             }
         },
         print:console.log
       }
       requireVm('./opencv.js',context,{},{},true)
-      setTimeout(()=>{
-          return reject(new Error('loading opencv time out'))
-      },3*1000)
     })
 }
 
