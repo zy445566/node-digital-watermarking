@@ -2,6 +2,14 @@ const lib = require('./lib.js');
 const path = require('path');
 const fs = require('fs');
 class DigitalWatermarking{
+    static getConfig() {
+        return lib.getConfig()
+    }
+
+    static setConfig({opencvJsPath}) {
+        return lib.setConfig({opencvJsPath})
+    }
+
     static getAbsoluteFilePath(filePath)
     {
         return path.isAbsolute(filePath)?filePath:path.join(process.cwd(),filePath);

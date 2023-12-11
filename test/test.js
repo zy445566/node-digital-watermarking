@@ -11,6 +11,7 @@ let watermarkText = "github.com/zy445566";
 let fontSize = 1.1;
 let enCodeFileName = getAbsolutePath("enCode.png");
 async function run() {
+    dw.setConfig({opencvJsPath:path.join(__dirname,'../opencv.js')})
     await dw.transformImageWithText(srcFileName,watermarkText,fontSize,enCodeFileName);
     //DeCode Image get digital watermarking
     let deCodeFileName = getAbsolutePath("deCode.png");

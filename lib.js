@@ -1,6 +1,17 @@
 const Jimp = require('jimp');
 const requireVm = require('require-vm');
 
+let libConfig={
+  opencvJsPath:''
+};
+
+function getConfig() {
+  return libConfig
+}
+function setConfig(configData) {
+  libConfig = configData
+}
+
 function isReadyFunc () {
     return new Promise((reslove,reject)=>{
       const context = {
@@ -20,7 +31,7 @@ function isReadyFunc () {
         },
         print:console.log
       }
-      requireVm('./opencv.js',context,{},{},true)
+      requireVm(libConfig.opencvJsPath || './opencv.js',context,{},{},true)
     })
 }
 
@@ -217,3 +228,5 @@ async function getTextFormImage(enCodeFileName,deCodeFileName='') {
 
 module.exports.transformImageWithText = transformImageWithText;
 module.exports.getTextFormImage = getTextFormImage;
+module.exports.getConfig = getConfig;
+module.exports.setConfig = setConfig;
