@@ -5,6 +5,10 @@ on:
     branches:
       - master
 
+permissions:
+  id-token: write  # Required for OIDC
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -30,6 +34,4 @@ jobs:
           registry-url: https://registry.npmjs.org/
       - run: npm ci
       - run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
 
