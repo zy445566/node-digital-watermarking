@@ -24,7 +24,7 @@
   },
   "homepage": "https://github.com/zy445566/node-digital-watermarking#readme",
   "dependencies": {
-    "@types/node": "^14.0.12",
+    "@types/node": "^20.19.43",
     "jimp": "^0.12.1"
   }
 }
