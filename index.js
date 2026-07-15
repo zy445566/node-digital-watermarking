@@ -6,8 +6,8 @@ class DigitalWatermarking{
         return lib.getConfig()
     }
 
-    static setConfig({opencvJsPath}) {
-        return lib.setConfig({opencvJsPath})
+    static setConfig(config = {}) {
+        return lib.setConfig(config)
     }
 
     static getAbsoluteFilePath(filePath)

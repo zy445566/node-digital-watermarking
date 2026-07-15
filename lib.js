@@ -1,232 +1,235 @@
-const Jimp = require('jimp');
-const requireVm = require('require-vm');
+'use strict';
 
-let libConfig={
-  opencvJsPath:''
-};
+const Jimp = require('jimp');
+const { FFT2D } = require('./fft');
+
+const WATERMARK_FONT = Jimp.FONT_SANS_32_WHITE;
+const ALPHA_THRESHOLD = 128;
+let fontPromise;
 
 function getConfig() {
-  return libConfig
-}
-function setConfig(configData) {
-  libConfig = configData
+    return {};
 }
 
-function isReadyFunc () {
-    return new Promise((reslove,reject)=>{
-      const context = {
-        module:{exports:{}},
-        Module:{
-            onRuntimeInitialized() {
-              context.cv = context.module.exports();
-              const cv = context.cv;
-              cv.idft = function(src, dst, flags, nonzero_rows ) {
-                cv.dft( src, dst, flags | cv.DFT_INVERSE, nonzero_rows );
-              }
-              return reslove(context);
-            },
-            onAbort() {
-              return reject(new Error('loading opencv error'))
+// Kept as a no-op so applications using the old OpenCV path setting do not break.
+function setConfig() {
+    return getConfig();
+}
+
+function validateTransformArguments(srcFileName, watermarkText, fontSize, outputFileName) {
+    if (typeof srcFileName !== 'string' && !Buffer.isBuffer(srcFileName)) {
+        throw new TypeError('fileName must be string or Buffer');
+    }
+    if (typeof watermarkText !== 'string') {
+        throw new TypeError('waterMarkText must be string');
+    }
+    if (typeof fontSize !== 'number' || !Number.isFinite(fontSize) || fontSize <= 0) {
+        throw new TypeError('fontSize must be a positive finite number');
+    }
+    if (typeof outputFileName !== 'string') {
+        throw new TypeError('outFileName must be string');
+    }
+}
+
+function validateDecodeArguments(inputFileName, outputFileName) {
+    if (typeof inputFileName !== 'string' && !Buffer.isBuffer(inputFileName)) {
+        throw new TypeError('fileName must be string or Buffer');
+    }
+    if (typeof outputFileName !== 'string') {
+        throw new TypeError('backFileName must be string');
+    }
+}
+
+function getWatermarkFont() {
+    if (!fontPromise) {
+        fontPromise = Jimp.loadFont(WATERMARK_FONT);
+    }
+    return fontPromise;
+}
+
+async function createTextMask(text, scale) {
+    if (text.length === 0) {
+        return null;
+    }
+
+    const font = await getWatermarkFont();
+    const sourceWidth = Jimp.measureText(font, text);
+    const sourceHeight = font.common.lineHeight;
+    const source = new Jimp(sourceWidth, sourceHeight, 0x00000000);
+    source.print(font, 0, 0, text);
+
+    const width = Math.max(1, Math.round(sourceWidth * scale));
+    const height = Math.max(1, Math.round(sourceHeight * scale));
+    if (width !== sourceWidth || height !== sourceHeight) {
+        source.resize(width, height, Jimp.RESIZE_NEAREST_NEIGHBOR);
+    }
+
+    return {
+        data: source.bitmap.data,
+        width,
+        height,
+        baseline: Math.round(font.common.base * scale)
+    };
+}
+
+function clearSpectrumPixel(real, imag, width, height, x, y) {
+    if (x < 0 || x >= width || y < 0 || y >= height) {
+        return;
+    }
+    const index = (y * width) + x;
+    real[index] = 0;
+    imag[index] = 0;
+}
+
+function addTextToSpectrum(real, imag, width, height, mask, pointX, pointY) {
+    if (!mask) {
+        return;
+    }
+
+    const left = Math.trunc(pointX);
+    const top = Math.trunc(pointY) - mask.baseline;
+    for (let maskY = 0; maskY < mask.height; maskY += 1) {
+        for (let maskX = 0; maskX < mask.width; maskX += 1) {
+            const alphaIndex = (((maskY * mask.width) + maskX) * 4) + 3;
+            if (mask.data[alphaIndex] < ALPHA_THRESHOLD) {
+                continue;
             }
-        },
-        print:console.log
-      }
-      requireVm(libConfig.opencvJsPath || './opencv.js',context,{},{},true)
-    })
-}
 
-function shiftDFT(cv, mag) {
-    let rect = new cv.Rect(0, 0, mag.cols & (-2), mag.rows & (-2));
-    mag.roi(rect);
-
-    let cx = mag.cols / 2;
-    let cy = mag.rows / 2;
-
-    let q0 = mag.roi(new cv.Rect(0, 0, cx, cy));
-    let q1 = mag.roi(new cv.Rect(cx, 0, cx, cy));
-    let q2 = mag.roi(new cv.Rect(0, cy, cx, cy));
-    let q3 = mag.roi(new cv.Rect(cx, cy, cx, cy));
-
-    let tmp =  new cv.Mat();
-    q0.copyTo(tmp);
-    q3.copyTo(q0);
-    tmp.copyTo(q3);
-
-    q1.copyTo(tmp);
-    q2.copyTo(q1);
-    tmp.copyTo(q2);
-
-    tmp.delete()
-    q0.delete()
-    q1.delete()
-    q2.delete()
-    q3.delete()
-}
-
-function getBlueChannel(cv, image)
-{
-    let nextImg = image;
-    let channel = new cv.MatVector();
-    cv.split(nextImg, channel);
-    return channel.get(0);
-}
-
-function getDftMat(cv, padded)
-{
-    let planes = new cv.MatVector();
-    planes.push_back(padded);
-    let matZ = new cv.Mat.zeros(padded.size(), cv.CV_32F)
-    planes.push_back(matZ);
-    let comImg = new cv.Mat();
-    cv.merge(planes,comImg);
-    cv.dft(comImg, comImg);
-    matZ.delete();
-    return comImg;
-}
-
-function addTextByMat(cv, comImg,watermarkText,point,fontSize)
-{
-    cv.putText(comImg, watermarkText, point, cv.FONT_HERSHEY_DUPLEX, fontSize, cv.Scalar.all(0),2);  
-    cv.flip(comImg, comImg, -1);
-    cv.putText(comImg, watermarkText, point, cv.FONT_HERSHEY_DUPLEX, fontSize, cv.Scalar.all(0),2);  
-    cv.flip(comImg, comImg, -1);
-}
-
-function transFormMatWithText(cv, srcImg, watermarkText,fontSize) {
-    let padded = getBlueChannel(cv, srcImg);
-    padded.convertTo(padded, cv.CV_32F);
-    let comImg = getDftMat(cv, padded);
-    // add text 
-    let center = new cv.Point(padded.cols/2, padded.rows/2);
-    addTextByMat(cv, comImg,watermarkText,center,fontSize);
-    let outer = new cv.Point (45, 45);
-    addTextByMat(cv, comImg,watermarkText,outer,fontSize);
-    //back image
-    let invDFT = new cv.Mat();
-    cv.idft(comImg, invDFT, cv.DFT_SCALE | cv.DFT_REAL_OUTPUT, 0);
-    let restoredImage = new cv.Mat();
-    invDFT.convertTo(restoredImage, cv.CV_8U);
-    let backPlanes = new cv.MatVector();
-    cv.split(srcImg, backPlanes);
-    // backPlanes.erase(backPlanes.get(0));
-    // backPlanes.insert(backPlanes.get(0), restoredImage);
-    backPlanes.set(0,restoredImage)
-    let backImage = new cv.Mat();
-    cv.merge(backPlanes,backImage);
-
-    padded.delete();
-    comImg.delete();
-    invDFT.delete();
-    restoredImage.delete()
-    return backImage;
-}
-
-function getTextFormMat(cv, backImage) {
-    let padded= getBlueChannel(cv, backImage);
-    padded.convertTo(padded, cv.CV_32F);
-    let comImg = getDftMat(cv, padded);
-    let backPlanes = new cv.MatVector();
-    // split the comples image in two backPlanes  
-    cv.split(comImg, backPlanes);
-    let mag = new cv.Mat();
-    // compute the magnitude
-    cv.magnitude(backPlanes.get(0), backPlanes.get(1), mag);
-    // move to a logarithmic scale  
-    let matOne = cv.Mat.ones(mag.size(), cv.CV_32F)
-    cv.add(matOne, mag, mag);  
-    cv.log(mag, mag);  
-    shiftDFT(cv, mag);
-    mag.convertTo(mag, cv.CV_8UC1);
-    cv.normalize(mag, mag, 0, 255, cv.NORM_MINMAX, cv.CV_8UC1);
-
-    padded.delete();
-    comImg.delete();
-    matOne.delete();
-    return mag;    
-}
-
-function matToBuffer(cv, mat){
-    if(!(mat instanceof cv.Mat)){
-        throw new Error("Please input the valid new cv.Mat instance.");
+            const x = left + maskX;
+            const y = top + maskY;
+            clearSpectrumPixel(real, imag, width, height, x, y);
+            // This mirrors OpenCV's flip(..., -1) sequence used by prior releases.
+            clearSpectrumPixel(real, imag, width, height, width - 1 - x, height - 1 - y);
+        }
     }
-    var img=new cv.Mat();
-    var depth=mat.type()%8;
-    var scale=depth<=cv.CV_8S?1:depth<=cv.CV_32S?1/256:255;
-    var shift=depth===cv.CV_8S||depth===cv.CV_16S?128:0;
-    mat.convertTo(img,cv.CV_8U,scale,shift);
-    switch(img.type()){
-        case cv.CV_8UC1:cv.cvtColor(img,img,cv.COLOR_GRAY2RGBA);break;
-        case cv.CV_8UC3:cv.cvtColor(img,img,cv.COLOR_RGB2RGBA);break;
-        case cv.CV_8UC4:break;
-        default:throw new Error("Bad number of channels (Source image must have 1, 3 or 4 channels)");
-    }
-    var imgData=Buffer.from(img.data);
-    img.delete()
-    return imgData
 }
 
-async function transformImageWithText(srcFileName,watermarkText,fontSize,enCodeFileName='') {
-  const context = await isReadyFunc ()
-  const cv = context.cv;
-  if((typeof srcFileName)!='string' && (!(srcFileName instanceof Buffer))) {
-    throw new Error('fileName must be string or Buffer')
-  }
-  if((typeof watermarkText)!='string') {
-    throw new Error('waterMarkText must be string')
-  }
-  if((typeof fontSize)!='number') {
-    throw new Error('fontSize must be number')
-  }
-  if((typeof enCodeFileName)!='string') {
-    throw new Error('outFileName must be string')
-  }
-  let jimpSrc = await Jimp.read(srcFileName);
-  let srcImg = new cv.matFromImageData(jimpSrc.bitmap);
-  if (srcImg.empty()){throw new Error("read image failed");}
-  let comImg = transFormMatWithText(cv, srcImg, watermarkText, fontSize);
-  const imgRes = new Jimp({
-    width: comImg.cols,
-    height: comImg.rows,
-    data: matToBuffer(cv, comImg)
-  });
-  srcImg.delete();
-  comImg.delete();
-  if(enCodeFileName) {
-    return await imgRes.writeAsync(enCodeFileName);
-  } else {
-    return imgRes
-  }
+function createFrequencyData(bitmap) {
+    const { width, height, data } = bitmap;
+    const real = new Float64Array(width * height);
+    const imag = new Float64Array(width * height);
+    for (let i = 0; i < real.length; i += 1) {
+        // matFromImageData exposed RGBA, and the previous implementation used channel 0.
+        real[i] = data[i * 4];
+    }
+    return { real, imag };
 }
 
-async function getTextFormImage(enCodeFileName,deCodeFileName='') {
-    const context = await isReadyFunc ()
-    const cv = context.cv;
-    if((typeof enCodeFileName)!='string'  && (!(enCodeFileName instanceof Buffer))) {
-      throw new Error('fileName must be string or Buffer')
+function clampByte(value) {
+    if (value <= 0 || Number.isNaN(value)) {
+        return 0;
     }
-    if((typeof deCodeFileName)!='string') {
-      throw new Error('backFileName must be string')
+    if (value >= 255) {
+        return 255;
+    }
+    return Math.round(value);
+}
+
+async function embedWatermark(bitmap, watermarkText, fontSize) {
+    const { width, height } = bitmap;
+    const mask = await createTextMask(watermarkText, fontSize);
+    const { real, imag } = createFrequencyData(bitmap);
+    const fft = new FFT2D(width, height);
+    fft.transform(real, imag, false);
+
+    addTextToSpectrum(real, imag, width, height, mask, width / 2, height / 2);
+    addTextToSpectrum(real, imag, width, height, mask, 45, 45);
+    fft.transform(real, imag, true);
+
+    const output = Buffer.from(bitmap.data);
+    for (let i = 0; i < real.length; i += 1) {
+        output[i * 4] = clampByte(real[i]);
+    }
+    return output;
+}
+
+function swapMagnitudeQuadrants(magnitude, width, height) {
+    const halfWidth = Math.floor(width / 2);
+    const halfHeight = Math.floor(height / 2);
+    for (let y = 0; y < halfHeight; y += 1) {
+        const bottomY = y + halfHeight;
+        for (let x = 0; x < halfWidth; x += 1) {
+            const rightX = x + halfWidth;
+            const topLeft = (y * width) + x;
+            const topRight = (y * width) + rightX;
+            const bottomLeft = (bottomY * width) + x;
+            const bottomRight = (bottomY * width) + rightX;
+
+            let value = magnitude[topLeft];
+            magnitude[topLeft] = magnitude[bottomRight];
+            magnitude[bottomRight] = value;
+
+            value = magnitude[topRight];
+            magnitude[topRight] = magnitude[bottomLeft];
+            magnitude[bottomLeft] = value;
+        }
+    }
+}
+
+function spectrumToRgba(real, imag, width, height) {
+    const pixelCount = width * height;
+    const magnitude = new Float64Array(pixelCount);
+    for (let i = 0; i < pixelCount; i += 1) {
+        magnitude[i] = Math.log1p(Math.hypot(real[i], imag[i]));
+    }
+    swapMagnitudeQuadrants(magnitude, width, height);
+
+    // OpenCV converted to 8-bit before min/max normalization, so retain that step.
+    const quantized = new Uint8Array(pixelCount);
+    let minimum = 255;
+    let maximum = 0;
+    for (let i = 0; i < pixelCount; i += 1) {
+        const value = clampByte(magnitude[i]);
+        quantized[i] = value;
+        minimum = Math.min(minimum, value);
+        maximum = Math.max(maximum, value);
     }
 
-    let jimpSrc = await Jimp.read(enCodeFileName);
-    let comImg = new cv.matFromImageData(jimpSrc.bitmap);
-    let backImage = getTextFormMat(cv, comImg);
-    const imgRes = await new Jimp({
-        width: backImage.cols,
-        height: backImage.rows,
-        data: matToBuffer(cv, backImage)
-    })
-    comImg.delete();
-    backImage.delete();
-    if(deCodeFileName) {
-      return await imgRes.writeAsync(deCodeFileName);
-    } else {
-      return imgRes
+    const output = Buffer.alloc(pixelCount * 4);
+    const range = maximum - minimum;
+    for (let i = 0; i < pixelCount; i += 1) {
+        const value = range === 0 ? 0 : clampByte((quantized[i] - minimum) * 255 / range);
+        const offset = i * 4;
+        output[offset] = value;
+        output[offset + 1] = value;
+        output[offset + 2] = value;
+        output[offset + 3] = 255;
     }
-  }
+    return output;
+}
 
+async function transformImageWithText(srcFileName, watermarkText, fontSize, enCodeFileName = '') {
+    validateTransformArguments(srcFileName, watermarkText, fontSize, enCodeFileName);
+    const source = await Jimp.read(srcFileName);
+    const data = await embedWatermark(source.bitmap, watermarkText, fontSize);
+    const result = new Jimp({
+        width: source.bitmap.width,
+        height: source.bitmap.height,
+        data
+    });
 
-module.exports.transformImageWithText = transformImageWithText;
-module.exports.getTextFormImage = getTextFormImage;
-module.exports.getConfig = getConfig;
-module.exports.setConfig = setConfig;
+    return enCodeFileName ? result.writeAsync(enCodeFileName) : result;
+}
+
+async function getTextFormImage(enCodeFileName, deCodeFileName = '') {
+    validateDecodeArguments(enCodeFileName, deCodeFileName);
+    const source = await Jimp.read(enCodeFileName);
+    const { width, height } = source.bitmap;
+    const { real, imag } = createFrequencyData(source.bitmap);
+    const fft = new FFT2D(width, height);
+    fft.transform(real, imag, false);
+    const result = new Jimp({
+        width,
+        height,
+        data: spectrumToRgba(real, imag, width, height)
+    });
+
+    return deCodeFileName ? result.writeAsync(deCodeFileName) : result;
+}
+
+module.exports = {
+    transformImageWithText,
+    getTextFormImage,
+    getConfig,
+    setConfig
+};
