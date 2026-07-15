@@ -90,8 +90,8 @@ async function testPublicApi() {
     assert.strictEqual(decoded.bitmap.width, source.bitmap.width);
     assert.strictEqual(decoded.bitmap.height, source.bitmap.height);
     assertGrayscale(decoded);
-    const encodedPath = path.join(__dirname, 'encoded.png');
-    const decodedPath = path.join(__dirname, 'decoded.png');
+    const encodedPath = path.join(__dirname, 'enCode.png');
+    const decodedPath = path.join(__dirname, 'deCode.png');
     try {
         await DigitalWatermarking.transformImageWithText(sourcePath, text, 1.1, encodedPath);
         await DigitalWatermarking.getTextFormImage(encodedPath, decodedPath);
